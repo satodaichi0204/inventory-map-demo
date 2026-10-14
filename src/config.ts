@@ -18,7 +18,7 @@ export const DEFAULT_CENTER = { lat: 35.6812, lng: 139.7671 };
 export const DEFAULT_ZOOM = 11;
 
 /** APIキー不要の無料の地図（OpenFreeMap） */
-export const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
+export const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
 
 /** デモ用のスタッフアカウント（ログイン画面に表示する。scripts/db-setup.ts でも使う） */
 export const DEMO_STAFF_ACCOUNTS = [

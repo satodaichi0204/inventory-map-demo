@@ -1,10 +1,21 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Map as MapLibreMap, NavigationControl, Popup, type GeoJSONSource, type MapLayerMouseEvent } from "maplibre-gl";
+import {
+  Map as MapLibreMap,
+  NavigationControl,
+  Popup,
+  getVersion,
+  setWorkerUrl,
+  type GeoJSONSource,
+  type MapLayerMouseEvent,
+} from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { DEFAULT_ZOOM, MAP_STYLE_URL } from "@/config";
 import type { LatLng } from "@/lib/types";
+
+// 地図の処理用ワーカーは public/maplibre/ から配信する（scripts/copy-maplibre-worker.mjs を参照）
+setWorkerUrl(`/maplibre/maplibre-gl-worker.mjs?v=${getVersion()}`);
 
 export type MapPoint = {
   id: string;
@@ -14,7 +25,12 @@ export type MapPoint = {
   color: string;
   emphasized: boolean;
   flash: boolean;
-  popup: { title: string; lines: string[]; href?: string };
+  popup: {
+    title: string;
+    status?: { label: string; color: string };
+    lines: string[];
+    href?: string;
+  };
 };
 
 type Props = {
@@ -30,7 +46,7 @@ type Props = {
 
 const EMPTY: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
 
-function toGeoJson(points: MapPoint[]): GeoJSON.FeatureCollection {
+function toGeoJson(points: MapPoint[], selectedId: string | null | undefined): GeoJSON.FeatureCollection {
   return {
     type: "FeatureCollection",
     features: points.map((p) => ({
@@ -43,29 +59,39 @@ function toGeoJson(points: MapPoint[]): GeoJSON.FeatureCollection {
         color: p.color,
         emphasized: p.emphasized ? 1 : 0,
         flash: p.flash ? 1 : 0,
+        selected: p.id === selectedId ? 1 : 0,
+        // 在庫のある店舗を上に描く
+        order: p.emphasized ? 1 : 0,
       },
     })),
   };
 }
 
+function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string) {
+  const node = document.createElement(tag);
+  node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
 function popupContent(popup: MapPoint["popup"]): HTMLElement {
-  const root = document.createElement("div");
-  root.className = "text-sm leading-relaxed";
-  const title = document.createElement("div");
-  title.className = "font-bold text-gray-900";
-  title.textContent = popup.title;
-  root.append(title);
-  for (const line of popup.lines) {
-    const el = document.createElement("div");
-    el.className = "text-gray-700";
-    el.textContent = line;
-    root.append(el);
+  const root = el("div", "min-w-[200px] pr-4 font-sans");
+  root.append(el("div", "text-[14px] font-bold leading-snug text-slate-900", popup.title));
+  if (popup.status) {
+    const status = el("div", "mt-1.5 inline-flex items-center gap-1.5 text-[13px] font-semibold text-slate-800");
+    const dot = el("span", "inline-block h-2 w-2 rounded-full");
+    dot.style.background = popup.status.color;
+    status.append(dot, document.createTextNode(popup.status.label));
+    root.append(status);
   }
+  for (const line of popup.lines) root.append(el("div", "mt-0.5 text-[12px] text-slate-500", line));
   if (popup.href) {
-    const a = document.createElement("a");
-    a.href = popup.href;
-    a.className = "mt-1 inline-block font-semibold text-blue-700 underline";
-    a.textContent = "店舗の詳細を見る";
+    const a = el(
+      "a",
+      "mt-2.5 flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-blue-700",
+      "店舗の在庫一覧を見る",
+    );
+    (a as HTMLAnchorElement).href = popup.href;
     root.append(a);
   }
   return root;
@@ -92,11 +118,15 @@ export default function StoreMap({ points, center, zoom, userLocation, selectedI
       zoom: zoom ?? DEFAULT_ZOOM,
       attributionControl: { compact: true },
       cooperativeGestures: compact,
+      interactive: !compact,
     });
     mapRef.current = map;
     if (!compact) map.addControl(new NavigationControl({ showCompass: false }), "top-right");
 
     map.on("load", () => {
+      // 小さな地図では、地図の出典表示を ⓘ ボタンにたたんでおく
+      if (compact)
+        containerRef.current?.querySelector(".maplibregl-compact-show")?.classList.remove("maplibregl-compact-show");
       map.addSource("stores", { type: "geojson", data: EMPTY });
       map.addSource("me", { type: "geojson", data: EMPTY });
 
@@ -107,22 +137,37 @@ export default function StoreMap({ points, center, zoom, userLocation, selectedI
         source: "stores",
         filter: ["==", ["get", "flash"], 1],
         paint: {
-          "circle-radius": 26,
+          "circle-radius": 30,
           "circle-color": ["get", "color"],
-          "circle-opacity": 0.3,
+          "circle-opacity": 0.22,
           "circle-stroke-color": ["get", "color"],
           "circle-stroke-width": 2,
+          "circle-stroke-opacity": 0.6,
+        },
+      });
+      // 選んだ店舗の外側の輪
+      map.addLayer({
+        id: "stores-selected",
+        type: "circle",
+        source: "stores",
+        filter: ["==", ["get", "selected"], 1],
+        paint: {
+          "circle-radius": 19,
+          "circle-color": "#ffffff",
+          "circle-stroke-color": "#1d4ed8",
+          "circle-stroke-width": 2.5,
         },
       });
       map.addLayer({
         id: "stores-circle",
         type: "circle",
         source: "stores",
+        layout: { "circle-sort-key": ["get", "order"] },
         paint: {
-          "circle-radius": ["case", ["==", ["get", "emphasized"], 1], 11, 7],
+          "circle-radius": ["case", ["==", ["get", "emphasized"], 1], 11, 8],
           "circle-color": ["get", "color"],
           "circle-stroke-color": "#ffffff",
-          "circle-stroke-width": 2.5,
+          "circle-stroke-width": 3,
         },
       });
       if (!compact) {
@@ -133,13 +178,20 @@ export default function StoreMap({ points, center, zoom, userLocation, selectedI
           layout: {
             "text-field": ["get", "label"],
             "text-size": 12,
-            "text-offset": [0, 1.4],
+            "text-offset": [0, 1.5],
             "text-anchor": "top",
-            "text-font": ["Noto Sans Regular"],
+            "text-font": ["Noto Sans Bold"],
+            "text-optional": true,
           },
-          paint: { "text-color": "#1f2937", "text-halo-color": "#ffffff", "text-halo-width": 1.5 },
+          paint: { "text-color": "#1e293b", "text-halo-color": "#ffffff", "text-halo-width": 2 },
         });
       }
+      map.addLayer({
+        id: "me-halo",
+        type: "circle",
+        source: "me",
+        paint: { "circle-radius": 18, "circle-color": "#3b82f6", "circle-opacity": 0.15 },
+      });
       map.addLayer({
         id: "me",
         type: "circle",
@@ -171,8 +223,8 @@ export default function StoreMap({ points, center, zoom, userLocation, selectedI
 
   useEffect(() => {
     if (!loaded) return;
-    (mapRef.current?.getSource("stores") as GeoJSONSource | undefined)?.setData(toGeoJson(points));
-  }, [loaded, points]);
+    (mapRef.current?.getSource("stores") as GeoJSONSource | undefined)?.setData(toGeoJson(points, selectedId));
+  }, [loaded, points, selectedId]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -207,7 +259,7 @@ export default function StoreMap({ points, center, zoom, userLocation, selectedI
       return;
     }
     if (!popupRef.current) {
-      popupRef.current = new Popup({ offset: 14, closeButton: true, maxWidth: "260px" });
+      popupRef.current = new Popup({ offset: 16, closeButton: true, maxWidth: "280px" });
       popupRef.current.on("close", () => onSelectRef.current?.(null));
     }
     popupRef.current.setLngLat([selected.lng, selected.lat]).setDOMContent(popupContent(selected.popup)).addTo(map);
@@ -216,7 +268,7 @@ export default function StoreMap({ points, center, zoom, userLocation, selectedI
   useEffect(() => {
     if (!loaded || !selectedId) return;
     const target = points.find((p) => p.id === selectedId);
-    if (target) mapRef.current?.easeTo({ center: [target.lng, target.lat] });
+    if (target) mapRef.current?.easeTo({ center: [target.lng, target.lat], offset: [0, 60] });
     // 選択が変わったときだけ移動する（在庫の更新では動かさない）
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded, selectedId]);

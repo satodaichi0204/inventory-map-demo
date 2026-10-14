@@ -4,35 +4,88 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { DEMO_STAFF_ACCOUNTS } from "@/config";
 import { supabase } from "@/lib/supabase";
+import { ChevronRightIcon, DemoNote, StoreIcon } from "./ui";
 
 export default function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [pending, setPending] = useState(false);
+  const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setPending(true);
+  const signIn = async (mail: string, pass: string) => {
+    setPending(mail);
     setError(null);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setPending(false);
+    const { error } = await supabase.auth.signInWithPassword({ email: mail, password: pass });
     if (error) {
+      setPending(null);
       setError(error.message === "Invalid login credentials" ? "メールアドレスかパスワードが違います" : error.message);
       return;
     }
     router.replace("/staff");
   };
 
-  return (
-    <div className="mx-auto w-full max-w-md p-4">
-      <h1 className="text-xl font-bold text-gray-900">スタッフ ログイン</h1>
-      <p className="mt-1 text-sm text-gray-600">店舗スタッフが、スマートフォンから在庫を更新する画面です。</p>
+  const inputClass =
+    "mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 text-base outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100";
 
-      <form onSubmit={submit} className="mt-5 space-y-3">
+  return (
+    <div className="mx-auto w-full max-w-md px-4 py-8 md:py-12">
+      <div className="text-center">
+        <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-600/30">
+          <StoreIcon className="h-6 w-6" />
+        </span>
+        <h1 className="mt-4 text-2xl font-bold tracking-tight text-slate-900">スタッフ ログイン</h1>
+        <p className="mt-1 text-sm text-slate-500">スマートフォンから、担当店舗の在庫を更新できます</p>
+      </div>
+
+      {/* デモ用アカウント */}
+      <section className="mt-7">
+        <h2 className="mb-2 flex items-center gap-2 text-xs font-bold text-slate-500">
+          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] tracking-wider text-amber-800">DEMO</span>
+          デモ用アカウントで試す（タップでログイン）
+        </h2>
+        <ul className="space-y-2">
+          {DEMO_STAFF_ACCOUNTS.map((a) => (
+            <li key={a.email}>
+              <button
+                type="button"
+                disabled={pending !== null}
+                onClick={() => signIn(a.email, a.password)}
+                className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md disabled:opacity-60"
+              >
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-600">
+                  <StoreIcon className="h-5 w-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-bold text-slate-900">{a.displayName}</span>
+                  <span className="block truncate text-xs text-slate-500">{a.email}</span>
+                  <span className="block text-xs text-slate-400">パスワード：{a.password}</span>
+                </span>
+                <span className="shrink-0 text-xs font-semibold text-blue-600">
+                  {pending === a.email ? "ログイン中…" : <ChevronRightIcon className="h-5 w-5" />}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2 text-xs text-slate-500">それぞれ、担当の店舗の在庫だけを更新できます。</p>
+      </section>
+
+      <div className="my-7 flex items-center gap-3 text-xs text-slate-400">
+        <span className="h-px flex-1 bg-slate-200" />
+        またはメールアドレスで
+        <span className="h-px flex-1 bg-slate-200" />
+      </div>
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          signIn(email, password);
+        }}
+        className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+      >
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="email" className="block text-sm font-semibold text-slate-700">
             メールアドレス
           </label>
           <input
@@ -42,11 +95,11 @@ export default function LoginForm() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+            className={inputClass}
           />
         </div>
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="password" className="block text-sm font-semibold text-slate-700">
             パスワード
           </label>
           <input
@@ -56,46 +109,23 @@ export default function LoginForm() {
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+            className={inputClass}
           />
         </div>
         {error && (
-          <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
             {error}
           </p>
         )}
         <button
           type="submit"
-          disabled={pending}
-          className="w-full rounded-lg bg-blue-600 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+          disabled={pending !== null}
+          className="h-11 w-full rounded-xl bg-blue-600 font-semibold text-white shadow-sm shadow-blue-600/30 transition hover:bg-blue-700 disabled:opacity-60"
         >
-          {pending ? "ログイン中…" : "ログイン"}
+          {pending === email && email ? "ログイン中…" : "ログイン"}
         </button>
       </form>
-
-      <div className="mt-6 rounded-lg border border-amber-300 bg-amber-50 p-3">
-        <p className="text-sm font-bold text-amber-900">デモ用のアカウント</p>
-        <p className="mt-0.5 text-xs text-amber-900">押すと入力欄に入ります。それぞれ担当の店舗だけを更新できます。</p>
-        <ul className="mt-2 space-y-2">
-          {DEMO_STAFF_ACCOUNTS.map((a) => (
-            <li key={a.email} className="rounded-md bg-white p-2 text-xs text-gray-700 ring-1 ring-amber-200">
-              <div className="font-semibold text-gray-900">{a.displayName}</div>
-              <div className="break-all">{a.email}</div>
-              <div>パスワード：{a.password}</div>
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail(a.email);
-                  setPassword(a.password);
-                }}
-                className="mt-1.5 rounded border border-gray-300 px-2 py-0.5 text-xs font-medium hover:bg-gray-50"
-              >
-                この内容を入力
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
+      <DemoNote className="mt-6 text-center" />
     </div>
   );
 }

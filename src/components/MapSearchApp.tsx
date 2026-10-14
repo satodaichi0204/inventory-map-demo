@@ -11,14 +11,26 @@ import { supabase } from "@/lib/supabase";
 import { formatDistance, formatRelative } from "@/lib/time";
 import type { InventoryRow, LatLng, NearbyStore, Product } from "@/lib/types";
 import type { MapPoint } from "./StoreMap";
-import { DisplayModeToggle, LiveIndicator, StockBadge, Toast, UpdatedAt } from "./ui";
+import {
+  ChevronRightIcon,
+  CloseIcon,
+  DemoNote,
+  DisplayModeToggle,
+  LiveIndicator,
+  LocateIcon,
+  SearchIcon,
+  StockBadge,
+  StockLegend,
+  Toast,
+  UpdatedAt,
+} from "./ui";
 
 const StoreMap = dynamic(() => import("./StoreMap"), {
   ssr: false,
-  loading: () => <div className="h-full w-full animate-pulse bg-gray-100" />,
+  loading: () => <div className="h-full w-full animate-pulse bg-slate-100" />,
 });
 
-const SAMPLE_QUERIES = ["麦茶", "ﾋﾞﾆｰﾙ傘", "抹茶ロール", "2026100000014"];
+const SAMPLE_QUERIES = ["ﾋﾞﾆｰﾙ傘", "麦茶", "抹茶ロール", "2026100000014"];
 
 const shortName = (name: string) => name.replace(/^デモマート\s*/, "");
 
@@ -162,11 +174,8 @@ export default function MapSearchApp() {
     () =>
       stores.map((s) => {
         const level = stockLevel(s.quantity);
-        const lines = [`${s.opening_hours ?? ""}　現在地から ${formatDistance(s.distance_m)}`];
-        if (product) {
-          lines.unshift(`${product.name}：${stockLabel(s.quantity, mode)}`);
-          lines.push(s.updated_at ? `${formatRelative(s.updated_at, now)}に更新` : "更新記録なし");
-        }
+        const meta = [`現在地から ${formatDistance(s.distance_m)}・${s.opening_hours ?? ""}`];
+        if (product) meta.push(s.updated_at ? `${formatRelative(s.updated_at, now)}に更新` : "更新記録なし");
         return {
           id: s.id,
           label: shortName(s.name),
@@ -175,7 +184,12 @@ export default function MapSearchApp() {
           color: product ? STOCK_COLORS[level] : STOCK_COLORS.none,
           emphasized: product ? level !== "out" : false,
           flash: flashing.has(s.id),
-          popup: { title: s.name, lines, href: `/stores/${s.id}` },
+          popup: {
+            title: s.name,
+            status: product ? { label: stockLabel(s.quantity, mode), color: STOCK_COLORS[level] } : undefined,
+            lines: meta,
+            href: `/stores/${s.id}`,
+          },
         };
       }),
     [stores, product, mode, now, flashing],
@@ -184,15 +198,73 @@ export default function MapSearchApp() {
   const inStock = product ? stores.filter((s) => (s.quantity ?? 0) > 0) : stores;
   const outOfStock = product ? stores.filter((s) => (s.quantity ?? 0) <= 0) : [];
 
+  const storeRow = (s: NearbyStore) => {
+    const out = product && (s.quantity ?? 0) <= 0;
+    const color = product ? STOCK_COLORS[stockLevel(s.quantity)] : STOCK_COLORS.none;
+    const selected = selectedStoreId === s.id;
+    return (
+      <li
+        key={s.id}
+        className={`group relative flex items-stretch transition-colors duration-700 ${
+          flashing.has(s.id) ? "bg-amber-100/70" : selected ? "bg-blue-50/70" : "hover:bg-slate-50"
+        }`}
+      >
+        {selected && <span className="absolute inset-y-0 left-0 w-1 rounded-r bg-blue-600" />}
+        <button
+          type="button"
+          onClick={() => setSelectedStoreId(s.id)}
+          className={`flex min-w-0 flex-1 items-start gap-3 py-3.5 pl-4 text-left ${out ? "opacity-60" : ""}`}
+        >
+          <span
+            className="mt-1.5 h-3 w-3 shrink-0 rounded-full ring-[3px] ring-white"
+            style={{ background: color, boxShadow: `0 0 0 1px ${color}40` }}
+          />
+          <span className="min-w-0 flex-1">
+            <span className="flex items-baseline justify-between gap-2">
+              <span className="truncate text-[15px] font-semibold text-slate-900">{s.name}</span>
+              <span className="shrink-0 text-xs tabular-nums text-slate-500">{formatDistance(s.distance_m)}</span>
+            </span>
+            {product ? (
+              <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                <StockBadge quantity={s.quantity} mode={mode} />
+                <UpdatedAt at={s.updated_at} now={now} compact />
+              </span>
+            ) : (
+              <span className="mt-0.5 block truncate text-xs text-slate-500">
+                {s.opening_hours}・{s.address}
+              </span>
+            )}
+          </span>
+        </button>
+        <Link
+          href={`/stores/${s.id}`}
+          aria-label={`${s.name}の在庫一覧`}
+          title="店舗の在庫一覧"
+          className="flex shrink-0 items-center px-3 text-slate-300 transition hover:text-blue-600"
+        >
+          <ChevronRightIcon className="h-5 w-5" />
+        </Link>
+      </li>
+    );
+  };
+
   return (
     // スマートフォンでは「検索 → 地図 → 店舗リスト」の縦並び、PCでは左に検索とリスト、右に地図
-    <div className="grid min-h-0 flex-1 grid-rows-[auto_45vh_auto] md:grid-cols-[400px_1fr] md:grid-rows-[auto_1fr]">
+    <div className="grid min-h-0 flex-1 grid-rows-[auto_42vh_auto] bg-white md:grid-cols-[420px_1fr] md:grid-rows-[auto_1fr]">
       {/* 検索 */}
-      <div className="sticky top-0 z-10 space-y-2 border-b border-gray-200 bg-white p-3 md:static md:col-start-1 md:row-start-1 md:border-r">
+      <div className="sticky top-0 z-20 space-y-3 border-b border-slate-200 bg-white px-4 pb-3 pt-4 md:static md:col-start-1 md:row-start-1 md:border-r">
+        <div className="hidden md:block">
+          <h1 className="text-lg font-bold tracking-tight text-slate-900">在庫のある店舗を探す</h1>
+          <p className="mt-0.5 text-xs text-slate-500">
+            商品名（ひらがな・カタカナ・半角でも可）か、JANコードで検索できます
+          </p>
+        </div>
+
         <div className="relative">
           <label htmlFor="product-search" className="sr-only">
             商品名またはJANコードで検索
           </label>
+          <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
           <input
             id="product-search"
             type="search"
@@ -204,70 +276,105 @@ export default function MapSearchApp() {
               if (!e.target.value) chooseProduct(null);
             }}
             onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
-            placeholder="商品名またはJANコードで検索"
-            className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+            placeholder="商品名またはJANコード"
+            className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-11 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100 [&::-webkit-search-cancel-button]:hidden"
           />
+          {query && (
+            <button
+              type="button"
+              onClick={() => chooseProduct(null)}
+              aria-label="検索をクリア"
+              className="absolute right-2.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+            >
+              <CloseIcon className="h-4 w-4" />
+            </button>
+          )}
           {showSuggestions && query && (
-            <ul className="absolute inset-x-0 top-full z-20 mt-1 max-h-72 overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+            <ul className="absolute inset-x-0 top-full z-30 mt-2 max-h-80 overflow-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-900/10">
               {suggestions.length === 0 && (
-                <li className="px-3 py-2.5 text-sm text-gray-500">該当する商品がありません</li>
+                <li className="px-3 py-3 text-sm text-slate-500">該当する商品がありません</li>
               )}
               {suggestions.map((p) => (
                 <li key={p.id}>
                   <button
                     type="button"
                     onClick={() => chooseProduct(p)}
-                    className="block w-full px-3 py-2.5 text-left hover:bg-blue-50"
+                    className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-blue-50"
                   >
-                    <span className="block text-sm font-medium text-gray-900">{p.name}</span>
-                    <span className="block text-xs text-gray-500">
-                      {p.category}　JAN {p.jan_code}
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-semibold text-slate-900">{p.name}</span>
+                      <span className="block font-mono text-[11px] text-slate-400">JAN {p.jan_code}</span>
                     </span>
+                    {p.category && (
+                      <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">
+                        {p.category}
+                      </span>
+                    )}
                   </button>
                 </li>
               ))}
             </ul>
           )}
         </div>
-        {!product && (
+
+        {product ? (
+          <div className="flex items-center gap-3 rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-3">
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-white text-center shadow-sm ring-1 ring-blue-100">
+              <span className="text-lg font-bold leading-none text-blue-700">{inStock.length}</span>
+              <span className="-mt-1 text-[10px] text-slate-500">/{stores.length}店</span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold text-slate-900">{product.name}</p>
+              <p className="text-xs text-slate-500">
+                {inStock.length > 0 ? `${inStock.length}店舗に在庫があります` : "在庫のある店舗はありません"}
+                {product.category && <span className="text-slate-400">・{product.category}</span>}
+              </p>
+            </div>
+          </div>
+        ) : (
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs text-gray-500">例：</span>
+            <span className="text-xs text-slate-400">試す：</span>
             {SAMPLE_QUERIES.map((q) => (
               <button
                 key={q}
                 type="button"
                 onClick={() => runSample(q)}
-                className="rounded-full border border-gray-300 px-2.5 py-0.5 text-xs text-gray-700 hover:bg-gray-50"
+                className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
               >
                 {q}
               </button>
             ))}
           </div>
         )}
+
         <div className="flex flex-wrap items-center justify-between gap-2">
           <button
             type="button"
             onClick={locate}
             disabled={locating}
-            className="rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
           >
-            {locating ? "現在地を取得中…" : userLocation ? "現在地を更新" : "現在地から探す"}
+            <LocateIcon className={`h-4 w-4 ${userLocation ? "text-blue-600" : ""}`} />
+            {locating ? "取得中…" : userLocation ? "現在地を更新" : "現在地から探す"}
           </button>
           <DisplayModeToggle mode={mode} onChange={setMode} />
-          <LiveIndicator live={live} />
         </div>
+
         {error && (
-          <p className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700" role="alert">
+          <p
+            className="flex items-start justify-between gap-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700"
+            role="alert"
+          >
             {error}
-            <button type="button" onClick={() => setError(null)} className="ml-2 underline">
-              閉じる
+            <button type="button" onClick={() => setError(null)} aria-label="閉じる" className="shrink-0">
+              <CloseIcon className="h-4 w-4" />
             </button>
           </p>
         )}
       </div>
 
       {/* 地図 */}
-      <section className="min-h-0 md:col-start-2 md:row-span-2 md:row-start-1">
+      <section className="relative min-h-0 md:col-start-2 md:row-span-2 md:row-start-1">
         <StoreMap
           points={points}
           center={origin}
@@ -275,56 +382,41 @@ export default function MapSearchApp() {
           selectedId={selectedStoreId}
           onSelect={setSelectedStoreId}
         />
+        <div className="pointer-events-none absolute left-3 top-3 z-10">
+          <LiveIndicator
+            live={live}
+            className="rounded-full bg-white/95 px-3 py-1.5 shadow-md ring-1 ring-slate-900/5 backdrop-blur"
+          />
+        </div>
+        {product && (
+          <div className="pointer-events-none absolute bottom-8 left-3 z-10">
+            <StockLegend />
+          </div>
+        )}
       </section>
 
       {/* 店舗リスト */}
-      <div className="border-gray-200 md:col-start-1 md:row-start-2 md:min-h-0 md:overflow-y-auto md:border-r">
-        <h2 className="px-3 pt-3 text-sm font-bold text-gray-900">
-          {product ? (
-            <>
-              「{product.name}」の在庫がある店舗 <span className="text-blue-700">{inStock.length}件</span>
-            </>
-          ) : (
-            <>店舗（{userLocation ? "現在地" : "東京駅"}から近い順）</>
-          )}
+      <div className="border-slate-200 md:col-start-1 md:row-start-2 md:min-h-0 md:overflow-y-auto md:border-r">
+        <h2 className="flex items-center justify-between px-4 pb-1 pt-4 text-xs font-bold uppercase tracking-wide text-slate-500">
+          <span>
+            {product ? "在庫のある店舗" : "店舗"}（{userLocation ? "現在地" : "東京駅"}から近い順）
+          </span>
+          <span className="tabular-nums">{inStock.length}件</span>
         </h2>
-        <ul className="divide-y divide-gray-100">
-          {[...inStock, ...outOfStock].map((s) => {
-            const out = product && (s.quantity ?? 0) <= 0;
-            return (
-              <li
-                key={s.id}
-                className={`transition-colors duration-700 ${flashing.has(s.id) ? "bg-yellow-100" : selectedStoreId === s.id ? "bg-blue-50" : ""}`}
-              >
-                <button
-                  type="button"
-                  onClick={() => setSelectedStoreId(s.id)}
-                  className={`block w-full px-3 py-3 text-left ${out ? "opacity-55" : ""}`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="font-medium text-gray-900">{s.name}</span>
-                    <span className="shrink-0 text-xs text-gray-500">{formatDistance(s.distance_m)}</span>
-                  </div>
-                  {product ? (
-                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <StockBadge quantity={s.quantity} mode={mode} />
-                      <UpdatedAt at={s.updated_at} now={now} />
-                    </div>
-                  ) : (
-                    <div className="mt-0.5 text-xs text-gray-500">
-                      {s.address}　{s.opening_hours}
-                    </div>
-                  )}
-                </button>
-                <div className="px-3 pb-3">
-                  <Link href={`/stores/${s.id}`} className="text-xs font-semibold text-blue-700 underline">
-                    この店舗の在庫一覧
-                  </Link>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+        {product && inStock.length === 0 && (
+          <p className="px-4 py-3 text-sm text-slate-500">現在、在庫のある店舗はありません。</p>
+        )}
+        <ul className="divide-y divide-slate-100">{inStock.map(storeRow)}</ul>
+        {outOfStock.length > 0 && (
+          <>
+            <h2 className="flex items-center justify-between border-t border-slate-100 px-4 pb-1 pt-4 text-xs font-bold tracking-wide text-slate-400">
+              <span>在庫なしの店舗</span>
+              <span className="tabular-nums">{outOfStock.length}件</span>
+            </h2>
+            <ul className="divide-y divide-slate-100">{outOfStock.map(storeRow)}</ul>
+          </>
+        )}
+        <DemoNote className="px-4 py-4" />
       </div>
 
       <Toast message={toast} />

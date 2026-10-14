@@ -11,7 +11,7 @@ import { applyInventoryChange, type InventoryChange } from "@/lib/stock";
 import { supabase } from "@/lib/supabase";
 import { formatAbsolute, formatRelative } from "@/lib/time";
 import type { InventoryRow, Product } from "@/lib/types";
-import { StockBadge, Toast, UpdatedAt } from "./ui";
+import { BoxIcon, ChevronRightIcon, DemoNote, LogoutIcon, ScanIcon, StockBadge, Toast, UpdatedAt } from "./ui";
 
 const BarcodeScanner = dynamic(() => import("./BarcodeScanner"), { ssr: false });
 
@@ -27,6 +27,11 @@ type Log = {
 };
 
 const CHANGE_LABEL = { increase: "入荷", decrease: "販売・減少", stocktake: "棚卸し" } as const;
+const CHANGE_STYLE = {
+  increase: "bg-emerald-50 text-emerald-700",
+  decrease: "bg-rose-50 text-rose-700",
+  stocktake: "bg-slate-100 text-slate-700",
+} as const;
 
 export default function StaffConsole() {
   const router = useRouter();
@@ -202,7 +207,13 @@ export default function StaffConsole() {
     router.replace("/staff/login");
   };
 
-  if (status === "loading") return <p className="p-6 text-sm text-gray-500">読み込み中…</p>;
+  if (status === "loading")
+    return (
+      <div className="mx-auto w-full max-w-xl space-y-4 p-4">
+        <div className="h-24 animate-pulse rounded-2xl bg-slate-200" />
+        <div className="h-40 animate-pulse rounded-2xl bg-slate-200" />
+      </div>
+    );
   if (status === "not-staff" || !staff)
     return (
       <div className="p-6 text-sm">
@@ -213,78 +224,101 @@ export default function StaffConsole() {
       </div>
     );
 
+  const quantity = inventory?.quantity ?? 0;
+  const inputClass =
+    "h-11 min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3.5 text-base outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100";
+
   return (
-    <div className="mx-auto w-full max-w-xl space-y-5 p-4">
-      <header className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs text-gray-500">担当店舗</p>
-          <h1 className="text-lg font-bold text-gray-900">{staff.store.name}</h1>
-          <p className="text-xs text-gray-500">{staff.display_name} でログイン中</p>
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          <button type="button" onClick={logout} className="text-sm text-gray-600 underline">
+    <div className="mx-auto w-full max-w-xl space-y-4 p-4 md:py-6">
+      {/* 担当店舗 */}
+      <header className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 p-5 text-white shadow-lg">
+        <div className="absolute -right-6 -top-6 h-28 w-28 rounded-full bg-blue-500/20" />
+        <div className="relative flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-slate-400">担当店舗</p>
+            <h1 className="mt-0.5 truncate text-xl font-bold tracking-tight">{staff.store.name}</h1>
+            <p className="mt-1 text-xs text-slate-400">{staff.display_name} でログイン中</p>
+          </div>
+          <button
+            type="button"
+            onClick={logout}
+            className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-white/10 px-2.5 py-1.5 text-xs font-medium text-slate-200 transition hover:bg-white/20"
+          >
+            <LogoutIcon className="h-4 w-4" />
             ログアウト
           </button>
-          <Link href={`/stores/${staff.store.id}`} target="_blank" className="text-xs text-blue-700 underline">
-            利用者の画面で見る
-          </Link>
         </div>
+        <Link
+          href={`/stores/${staff.store.id}`}
+          target="_blank"
+          className="relative mt-3 inline-block text-xs font-medium text-blue-300 underline-offset-2 hover:underline"
+        >
+          利用者の画面で、この店舗の在庫を見る →
+        </Link>
       </header>
 
       {/* 商品の呼び出し */}
-      <section className="space-y-3 rounded-xl border border-gray-200 p-4">
+      <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         {scanning ? (
           <BarcodeScanner onDetected={openProduct} onClose={() => setScanning(false)} />
         ) : (
           <button
             type="button"
             onClick={() => setScanning(true)}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-4 text-lg font-bold text-white hover:bg-blue-700"
+            className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-blue-600 py-4 text-lg font-bold text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-700 active:scale-[0.99]"
           >
-            <svg aria-hidden viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={2}>
-              <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M10 8v8M13 8v8M17 8v8" />
-            </svg>
+            <ScanIcon className="h-6 w-6" />
             バーコードを読み取る
           </button>
         )}
 
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            openProduct(manualCode.trim());
-          }}
-          className="flex gap-2"
-        >
-          <input
-            value={manualCode}
-            onChange={(e) => setManualCode(e.target.value.replace(/\D/g, ""))}
-            inputMode="numeric"
-            placeholder="JANコードを入力"
-            aria-label="JANコードを入力"
-            className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-base"
-          />
-          <button type="submit" className="rounded-lg border border-gray-300 px-4 text-sm font-medium hover:bg-gray-50">
-            呼び出す
-          </button>
-        </form>
-
-        <select
-          value=""
-          onChange={(e) => e.target.value && openProduct(e.target.value)}
-          aria-label="一覧から商品を選ぶ"
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700"
-        >
-          <option value="">一覧から選ぶ（カメラがない端末用）</option>
-          {products.map((p) => (
-            <option key={p.id} value={p.jan_code}>
-              {p.category ? `［${p.category}］` : ""}
-              {p.name}
-            </option>
-          ))}
-        </select>
+        <details className="group rounded-xl bg-slate-50 px-3 py-2.5">
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-slate-600 [&::-webkit-details-marker]:hidden">
+            <ChevronRightIcon className="h-4 w-4 transition group-open:rotate-90" />
+            カメラが使えないとき（コード入力・一覧から選ぶ）
+          </summary>
+          <div className="mt-3 space-y-2">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                openProduct(manualCode.trim());
+              }}
+              className="flex gap-2"
+            >
+              <input
+                value={manualCode}
+                onChange={(e) => setManualCode(e.target.value.replace(/\D/g, ""))}
+                inputMode="numeric"
+                placeholder="JANコード（8桁か13桁）"
+                aria-label="JANコードを入力"
+                className={`${inputClass} flex-1 bg-white font-mono`}
+              />
+              <button
+                type="submit"
+                className="rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+              >
+                呼び出す
+              </button>
+            </form>
+            <select
+              value=""
+              onChange={(e) => e.target.value && openProduct(e.target.value)}
+              aria-label="一覧から商品を選ぶ"
+              className={`${inputClass} w-full bg-white text-sm text-slate-700`}
+            >
+              <option value="">一覧から商品を選ぶ</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.jan_code}>
+                  {p.category ? `［${p.category}］` : ""}
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </details>
 
         {lookupError && (
-          <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
             {lookupError}
           </p>
         )}
@@ -292,38 +326,43 @@ export default function StaffConsole() {
 
       {/* 読み取った商品と在庫の更新 */}
       {product && (
-        <section className="space-y-4 rounded-xl border-2 border-blue-200 bg-blue-50/40 p-4">
-          <div>
-            <p className="text-xs text-gray-500">JAN {product.jan_code}</p>
-            <h2 className="text-lg font-bold text-gray-900">{product.name}</h2>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <StockBadge quantity={inventory?.quantity ?? 0} mode="exact" />
-              <UpdatedAt at={inventory?.updated_at} now={now} />
+        <section className="overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-md shadow-blue-900/5">
+          <div className="flex items-start gap-3 border-b border-slate-100 p-4">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-600">
+              <BoxIcon className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-base font-bold leading-snug text-slate-900">{product.name}</h2>
+              <p className="font-mono text-xs text-slate-400">JAN {product.jan_code}</p>
+              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                <StockBadge quantity={quantity} mode="exact" />
+                <UpdatedAt at={inventory?.updated_at} now={now} compact />
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-center gap-4">
+          <div className="flex items-center justify-center gap-6 px-4 py-6">
             <button
               type="button"
-              disabled={busy || (inventory?.quantity ?? 0) <= 0}
+              disabled={busy || quantity <= 0}
               onClick={() => change({ type: "adjust", delta: -1 })}
-              className="h-16 w-20 rounded-xl bg-white text-2xl font-bold text-gray-900 ring-1 ring-gray-300 hover:bg-gray-50 disabled:opacity-40"
+              className="grid h-16 w-16 place-items-center rounded-full bg-slate-100 text-3xl font-bold text-slate-700 transition hover:bg-slate-200 active:scale-95 disabled:opacity-30"
               aria-label="1個減らす"
             >
-              −1
+              −
             </button>
-            <div className="w-20 text-center">
-              <div className="text-4xl font-bold tabular-nums text-gray-900">{inventory?.quantity ?? 0}</div>
-              <div className="text-xs text-gray-500">個</div>
+            <div className="w-28 text-center">
+              <div className="text-5xl font-bold tabular-nums tracking-tight text-slate-900">{quantity}</div>
+              <div className="mt-1 text-xs font-medium text-slate-400">現在の在庫（個）</div>
             </div>
             <button
               type="button"
               disabled={busy}
               onClick={() => change({ type: "adjust", delta: 1 })}
-              className="h-16 w-20 rounded-xl bg-blue-600 text-2xl font-bold text-white hover:bg-blue-700 disabled:opacity-40"
+              className="grid h-16 w-16 place-items-center rounded-full bg-blue-600 text-3xl font-bold text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-700 active:scale-95 disabled:opacity-30"
               aria-label="1個増やす"
             >
-              ＋1
+              ＋
             </button>
           </div>
 
@@ -332,10 +371,10 @@ export default function StaffConsole() {
               e.preventDefault();
               change({ type: "set", quantity: Number(stocktake) });
             }}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 border-t border-slate-100 bg-slate-50 px-4 py-3"
           >
-            <label htmlFor="stocktake" className="shrink-0 text-sm text-gray-700">
-              棚卸し（数を直接入力）
+            <label htmlFor="stocktake" className="shrink-0 text-sm font-medium text-slate-600">
+              棚卸し
             </label>
             <input
               id="stocktake"
@@ -345,12 +384,13 @@ export default function StaffConsole() {
               step={1}
               value={stocktake}
               onChange={(e) => setStocktake(e.target.value)}
-              className="w-24 min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-base"
+              className={`${inputClass} w-20 flex-1 bg-white text-right tabular-nums`}
             />
+            <span className="shrink-0 text-sm text-slate-500">個に</span>
             <button
               type="submit"
-              disabled={busy || stocktake === "" || Number(stocktake) === (inventory?.quantity ?? 0)}
-              className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+              disabled={busy || stocktake === "" || Number(stocktake) === quantity}
+              className="h-11 shrink-0 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-30"
             >
               上書き
             </button>
@@ -360,10 +400,12 @@ export default function StaffConsole() {
 
       {/* 未登録の商品 */}
       {unknownCode && (
-        <section className="space-y-3 rounded-xl border-2 border-amber-300 bg-amber-50 p-4">
+        <section className="space-y-3 rounded-2xl border border-amber-300 bg-amber-50 p-4">
           <div>
             <p className="font-bold text-amber-900">未登録の商品です</p>
-            <p className="text-sm text-amber-900">JAN {unknownCode}。商品名を入れると、その場で登録できます。</p>
+            <p className="text-sm text-amber-900/80">
+              JAN <span className="font-mono">{unknownCode}</span>。商品名を入れると、その場で登録できます。
+            </p>
           </div>
           <form onSubmit={register} className="space-y-2">
             <input
@@ -372,19 +414,19 @@ export default function StaffConsole() {
               onChange={(e) => setNewName(e.target.value)}
               placeholder="商品名（例：デモ用 新商品）"
               aria-label="商品名"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base"
+              className={`${inputClass} w-full bg-white`}
             />
             <input
               value={newCategory}
               onChange={(e) => setNewCategory(e.target.value)}
               placeholder="カテゴリ（任意）"
               aria-label="カテゴリ"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base"
+              className={`${inputClass} w-full bg-white`}
             />
             <button
               type="submit"
               disabled={busy}
-              className="w-full rounded-lg bg-amber-600 py-2.5 font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
+              className="h-11 w-full rounded-xl bg-amber-600 font-semibold text-white transition hover:bg-amber-700 disabled:opacity-50"
             >
               登録する
             </button>
@@ -393,30 +435,39 @@ export default function StaffConsole() {
       )}
 
       {/* 更新履歴 */}
-      <section>
-        <h2 className="mb-2 text-sm font-bold text-gray-900">この店舗の更新履歴（新しい順）</h2>
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <h2 className="text-sm font-bold text-slate-900">更新履歴</h2>
+        <p className="text-xs text-slate-500">この店舗の在庫の変更（新しい順）</p>
         {logs.length === 0 ? (
-          <p className="text-sm text-gray-500">まだ更新はありません</p>
+          <p className="mt-3 text-sm text-slate-400">まだ更新はありません</p>
         ) : (
-          <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200 text-sm">
+          <ul className="mt-3 divide-y divide-slate-100">
             {logs.map((log) => (
-              <li key={log.id} className="px-3 py-2">
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="font-medium text-gray-900">{log.product?.name ?? "（削除された商品）"}</span>
-                  <span className="shrink-0 tabular-nums text-gray-900">
-                    {log.before_quantity} → <b>{log.after_quantity}</b>
-                  </span>
+              <li key={log.id} className="flex items-center gap-3 py-2.5">
+                <span
+                  className={`w-16 shrink-0 rounded-md py-0.5 text-center text-[11px] font-semibold ${CHANGE_STYLE[log.change_type]}`}
+                >
+                  {CHANGE_LABEL[log.change_type]}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium text-slate-900">
+                    {log.product?.name ?? "（削除された商品）"}
+                  </div>
+                  <div className="truncate text-xs text-slate-400">
+                    {(log.changed_by && members[log.changed_by]) || "不明なスタッフ"}・
+                    {formatRelative(log.changed_at, now)}（{formatAbsolute(log.changed_at)}）
+                  </div>
                 </div>
-                <div className="text-xs text-gray-500">
-                  {CHANGE_LABEL[log.change_type]}・{(log.changed_by && members[log.changed_by]) || "不明なスタッフ"}・
-                  {formatRelative(log.changed_at, now)}（{formatAbsolute(log.changed_at)}）
-                </div>
+                <span className="shrink-0 text-sm tabular-nums text-slate-400">
+                  {log.before_quantity} → <b className="text-slate-900">{log.after_quantity}</b>
+                </span>
               </li>
             ))}
           </ul>
         )}
       </section>
 
+      <DemoNote className="text-center" />
       <Toast message={toast} />
     </div>
   );

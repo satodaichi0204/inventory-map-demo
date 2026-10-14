@@ -8,7 +8,7 @@ import { useDisplayMode, useFlash, useNow } from "@/lib/hooks";
 import { escapeLike, normalizeForSearch } from "@/lib/normalize";
 import { STOCK_COLORS, stockLabel, stockLevel } from "@/lib/stock";
 import { supabase } from "@/lib/supabase";
-import { formatDistance, formatRelative } from "@/lib/time";
+import { formatDistance, formatUpdated } from "@/lib/time";
 import type { InventoryRow, LatLng, NearbyStore, Product } from "@/lib/types";
 import type { MapPoint } from "./StoreMap";
 import {
@@ -175,7 +175,7 @@ export default function MapSearchApp() {
       stores.map((s) => {
         const level = stockLevel(s.quantity);
         const meta = [`現在地から ${formatDistance(s.distance_m)}・${s.opening_hours ?? ""}`];
-        if (product) meta.push(s.updated_at ? `${formatRelative(s.updated_at, now)}に更新` : "更新記録なし");
+        if (product) meta.push(s.updated_at ? formatUpdated(s.updated_at, now) : "更新記録なし");
         return {
           id: s.id,
           label: shortName(s.name),

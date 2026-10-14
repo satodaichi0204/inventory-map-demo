@@ -26,3 +26,9 @@ export function formatAbsolute(date: Date | string): string {
 export function formatDistance(meters: number): string {
   return meters < 1000 ? `${Math.round(meters)}m` : `${(meters / 1000).toFixed(1)}km`;
 }
+
+/** 「3分前に更新」「たった今更新」 */
+export function formatUpdated(date: Date | string, now: Date = new Date()): string {
+  const relative = formatRelative(date, now);
+  return relative === "たった今" ? "たった今更新" : `${relative}に更新`;
+}

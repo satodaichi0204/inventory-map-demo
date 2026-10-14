@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDistance, formatRelative } from "./time";
+import { formatDistance, formatRelative, formatUpdated } from "./time";
 
 describe("formatRelative", () => {
   const now = new Date("2026-10-14T12:00:00+09:00");
@@ -21,5 +21,13 @@ describe("formatDistance", () => {
   it("1km未満はm、それ以上はkmで返す", () => {
     expect(formatDistance(350.4)).toBe("350m");
     expect(formatDistance(1530)).toBe("1.5km");
+  });
+});
+
+describe("formatUpdated", () => {
+  const now = new Date("2026-10-14T12:00:00+09:00");
+  it("「たった今更新」「N分前に更新」と自然な日本語にする", () => {
+    expect(formatUpdated(new Date(now.getTime() - 5_000), now)).toBe("たった今更新");
+    expect(formatUpdated(new Date(now.getTime() - 3 * 60_000), now)).toBe("3分前に更新");
   });
 });

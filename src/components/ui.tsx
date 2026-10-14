@@ -3,7 +3,7 @@
 import type { ReactNode, SVGProps } from "react";
 import type { StockDisplayMode } from "@/config";
 import { STOCK_COLORS, stockLabel, stockLevel } from "@/lib/stock";
-import { formatAbsolute, formatRelative } from "@/lib/time";
+import { formatAbsolute, formatUpdated } from "@/lib/time";
 
 // ---------------------------------------------------------------------------
 // アイコン（線画。外部ライブラリを増やさないよう、使う分だけ定義する）
@@ -118,7 +118,7 @@ export function UpdatedAt({ at, now, compact }: { at: string | null | undefined;
   if (!at) return <span className="text-xs text-slate-400">更新記録なし</span>;
   return (
     <span className="whitespace-nowrap text-xs text-slate-500" title={formatAbsolute(at)}>
-      {formatRelative(at, now)}に更新{!compact && <span className="text-slate-400">（{formatAbsolute(at)}）</span>}
+      {formatUpdated(at, now)}{!compact && <span className="text-slate-400">（{formatAbsolute(at)}）</span>}
     </span>
   );
 }
